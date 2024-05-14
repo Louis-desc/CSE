@@ -3,7 +3,7 @@
 ## To do
 
 - [ ] Implementing GNN models (1)
-  - [ ] Implementing SAGE Model (1.1)
+  - [ ] Implementing neuromatch with SAGE Model (1.1)
 - [ ] Implementing the loss functions according to NeuroMatch paper (2)
 - [ ] Validation function (3)
 - [ ] Loading data (4)
@@ -14,8 +14,7 @@
 
 ## Doing
 
-* [ ] Implementing SAGE (1.1) (05/02/2024 - ...)
-
-
+* [ ] Implementing neuromatch with SAGE (1.1) (05/02/2024 - ...)
+* [ ] Generating graph (4.1) (05/07/2024-...)
 
 ## Done
