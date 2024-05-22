@@ -8,6 +8,7 @@ In this module :
 - Power Law Cluster Generator : PLCGenerator
 """
 
+import random
 import networkx as nx
 import numpy as np
 from deepsnap import dataset
@@ -130,7 +131,10 @@ class BAGenerator(dataset.Generator):
     def generate(self, size=None):
         num_nodes = self._get_size(size)
         max_m = int(2 * np.log2(num_nodes))
-        m = np.random.choice(max_m) + 1
+        # m = np.random.choice(max_m) + 1 in the original git
+        m = random.randint(1,max_m) 
+        if m== num_nodes :
+            m-= 1
         p = np.min([np.random.exponential(20), self.max_p])
         q = np.min([np.random.exponential(20), self.max_q])
 

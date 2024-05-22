@@ -15,6 +15,12 @@
 ## Doing
 
 * [ ] Implementing neuromatch with SAGE (1.1) (05/02/2024 - ...)
-* [ ] Generating graph (4.1) (05/07/2024-...)
+  * ~~Creating the neural network used in the initial training (`NM.NeuroMatchNetwork`) with SAGE layer.~~ (05/14)
+  * Implementing the skip among the GNN convolutional Sage layers. 
+* [ ] Generating synthetic graph for the training (4.1) (05/07/2024-...)
+  * ~~Creating generators with different models (`random_graph_generator.py`).~~ (05/14)
+  * Generating graphs batch throught Data Loaders iterators 
+  * Augmenting Data to add features 
+  
 
 ## Done

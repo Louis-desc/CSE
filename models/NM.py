@@ -16,7 +16,7 @@ class NeuroMatchNetwork(nn.Module) : # Refers to the SkipLastGNN class from the 
     skip :str ="learnable"                      #Probably to be deleted
     conv_type :str = "SAGE"                     #Probably to be deleted
 
-    def __init__(self, input_dim :int=1, hidden_dim :int=64, output_dim :int=64, aggr :str="sum", 
+    def __init__(self, input_dim :int=1, hidden_dim :int=64, output_dim :int=64, aggr :str="sum",
                  n_layers :int=8,dropout :float=0.0,skip :str="learnable",conv_type :str= "SAGE") -> None:
         super().__init__()
         self.input_dim = input_dim
@@ -34,7 +34,7 @@ class NeuroMatchNetwork(nn.Module) : # Refers to the SkipLastGNN class from the 
 
         #----------
         self.conv_model = pyg_nn.SAGEConv
-        #Initialize the convolution list len = n_layers 
+        #Initialize the convolution list len = n_layers
 
         self.convs = nn.ModuleList()
         for l in range(self.n_layers):
