@@ -18,7 +18,7 @@ class FeatureAugment(nn.Module):
     def __init__(self):
         super().__init__()
 
-        # def motif_counts_fun(graph, feature_dim): 
+        # def motif_counts_fun(graph, feature_dim):
         #     assert feature_dim % 73 == 0
         #     counts = orca.orbit_counts("node", 5, graph.G)
         #     counts = [[np.log(c) if c > 0 else -1.0 for c in l] for l in counts]

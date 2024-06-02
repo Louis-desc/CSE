@@ -18,8 +18,8 @@
   * ~~Creating the neural network used in the initial training (`NM.NeuroMatchNetwork`) with SAGE layer.~~ (05/14)
   * Implementing the skip among the GNN convolutional Sage layers. 
 * [ ] Generating synthetic graph for the training (4.1) (05/07/2024-...)
-  * ~~Creating generators with different models (`random_graph_generator.py`).~~ (05/14)
-  * Generating graphs batch throught Data Loaders iterators 
+  * ~~Creating generators with different models~~ (`random_graph_generator.py`) (05/14)
+  * ~~Generating graphs batch throught Data Loaders iterators~~ (05/22)
   * Augmenting Data to add features 
   
 
