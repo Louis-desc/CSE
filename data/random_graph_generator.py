@@ -8,12 +8,52 @@ In this module :
 - Power Law Cluster Generator : PLCGenerator
 """
 
+from abc import ABC, abstractmethod
 import random
 import networkx as nx
 import numpy as np
-from deepsnap import dataset
 
-class ERGenerator(dataset.Generator):
+# ----  Abstract class  ----
+
+class Generator(ABC):
+    r"""
+    Abstract class of on the fly generator used in the dataset.
+    It generates on the fly graphs, which will be fed into the model.
+    """
+    def __init__(self, sizes=None):
+        self._sizes_list = sizes
+
+    def _get_size(self, size=None):
+        
+        if size is None:
+            return np.random.choice(
+                self._sizes_list, size=1, replace=True
+            )[0]
+        else:
+            return size
+
+    def __next__(self) :
+        return self.generate()
+
+    def __iter__(self) :
+        return self
+
+    def __len__(self):
+        return 1
+
+    @abstractmethod
+    def generate(self):
+        r"""
+        Overwrite in subclass. Generates and returns a 
+        :class:`networkx.Graph` object
+
+        Returns:
+            :class:`networkx.Graph`: A networkx graph object.
+        """
+
+# ----  Generators implementation  ----
+
+class ERGenerator(Generator):
     """A modified Erdos-Renyi model generator
     """
     def __init__(self, sizes, alpha=1.3, **kwargs):
@@ -48,11 +88,12 @@ class ERGenerator(dataset.Generator):
         graph = nx.gnp_random_graph(num_nodes, p)
 
         while not nx.is_connected(graph):
+            #print(f"ER : num_nodes : {num_nodes}, p  : {p}")
             p = np.random.beta(alpha, beta)
             graph = nx.gnp_random_graph(num_nodes, p)
         return graph
 
-class WSGenerator(dataset.Generator):
+class WSGenerator(Generator):
     """A modified Watt-Strogatz model generator"""
     def __init__(self, sizes, k_alpha=1.3,
             rewire_alpha=2., rewire_beta=2., **kwargs):
@@ -100,12 +141,13 @@ class WSGenerator(dataset.Generator):
         graph = nx.watts_strogatz_graph(num_nodes,k,p)
         while not nx.is_connected(graph) :
             try :
+                #print(f"WS : num_nodes : {num_nodes}, k  : {k}, p : {p}")
                 graph = nx.connected_watts_strogatz_graph(num_nodes, k, p)
             finally :
                 pass
         return graph
 
-class BAGenerator(dataset.Generator):
+class BAGenerator(Generator):
     """A modified Barabasi Albert model generator"""
     def __init__(self, sizes, **kwargs):
         """A modified Barabasi Albert model generator
@@ -132,7 +174,7 @@ class BAGenerator(dataset.Generator):
         num_nodes = self._get_size(size)
         max_m = int(2 * np.log2(num_nodes))
         # m = np.random.choice(max_m) + 1 in the original git
-        m = random.randint(1,max_m) 
+        m = random.randint(1,max_m)
         if m== num_nodes :
             m-= 1
         p = np.min([np.random.exponential(20), self.max_p])
@@ -140,10 +182,11 @@ class BAGenerator(dataset.Generator):
 
         graph = nx.extended_barabasi_albert_graph(num_nodes, m, p, q)
         while not nx.is_connected(graph):
+            #print(f"BA : num_nodes : {num_nodes}, m  : {m}, p : {p}, q : {q}")
             graph = nx.extended_barabasi_albert_graph(num_nodes, m, p, q)
         return graph
 
-class PowerLawClusterGenerator(dataset.Generator):
+class PowerLawClusterGenerator(Generator):
     """A modified Power Law Cluster model generator"""
     def __init__(self, sizes, max_triangle_prob=0.5, **kwargs):
         """A modified Power Law Cluster model generator
@@ -173,12 +216,48 @@ class PowerLawClusterGenerator(dataset.Generator):
 
         graph = nx.powerlaw_cluster_graph(num_nodes, m, triangle_prob)
         while not nx.is_connected(graph):
+            if num_nodes == m :
+                #For some reason, nx.powerlaw... don't actually works and always send back a set of nodes without any edges
+                m -= 1
+            #print(f"PLC : num_nodes : {num_nodes}, m  : {m}, triangle_prob : {triangle_prob}")
             graph = nx.powerlaw_cluster_graph(num_nodes, m, triangle_prob)
+
         return graph
 #Alias
 PLCGenerator = PowerLawClusterGenerator
+class RandomGenerator(Generator) :
+    """Generator object that randomly choose a generator from a graph-generator list.
+    """
+    def __init__(self,sizes,gen_list=None) :
+        super().__init__(sizes)
+        self.gen_list = gen_list
+        self.gen_prob = np.ones(len(self.gen_list)) / len(self.gen_list)
 
-def random_generator(sizes,dataset_len=0) :
+    @property
+    def gen_list(self):
+        return self._gen_list
+
+    @gen_list.setter
+    def gen_list(self,val):
+        if val is None :
+            sizes = self._sizes_list
+            self._gen_list = [ERGenerator(sizes),WSGenerator(sizes),BAGenerator(sizes),PowerLawClusterGenerator(sizes)]
+        
+        else:
+            assert hasattr(val, '__iter__') #Check if the value is a list / An object you can iterate over
+            self._gen_list = []
+            for gen in val :
+                if isinstance(gen,Generator): #Check if the value is a generator
+                    self._gen_list.append(gen)
+                else:
+                    assert issubclass(gen,Generator) #Check if the value is a generator
+                    self._gen_list.append(gen(sizes))
+
+    def generate(self):
+        gen = np.random.choice(self.gen_list, p=self.gen_prob)
+        return gen.generate()
+
+def random_generator(sizes) :
     """Create a generator that, each time it is called, ramdomly sample a graph from one of the following
     generators : 
     - Erdos Renyi Generator : ERGenerator(alpha=1.3) 
@@ -191,18 +270,15 @@ def random_generator(sizes,dataset_len=0) :
     ----------
     sizes : [int]
         A list of different possible sizes (numbers of nodes) for the generated graphs
-    dataset_len : int, optional
-        length of the generated dataset, default 0
 
     Returns
     -------
     deepsnap.dataset.EnsembleGenerator
         list of generators that generate graphs randomly (and uniformely) from one of the generator of the list
     """
-    generator = dataset.EnsembleGenerator(
-        [ERGenerator(sizes),
+    generator = RandomGenerator(sizes,
+            [ERGenerator(sizes),
             WSGenerator(sizes),
             BAGenerator(sizes),
-            PowerLawClusterGenerator(sizes)],
-        dataset_len=dataset_len)
+            PowerLawClusterGenerator(sizes)])
     return generator
