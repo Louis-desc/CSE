@@ -1,6 +1,6 @@
 """Classes for random graph generators directly from Neuromatch
 
-Each class inheritate from deepsnap.Dataset.Generator.
+In this module only networkX graphs are generated.
 In this module : 
 - Erdos Renyi Generator : ERGenerator  
 - Watt-Strogatz Generator : WSGenerator
@@ -225,6 +225,7 @@ class PowerLawClusterGenerator(Generator):
         return graph
 #Alias
 PLCGenerator = PowerLawClusterGenerator
+
 class RandomGenerator(Generator) :
     """Generator object that randomly choose a generator from a graph-generator list.
     """
@@ -235,6 +236,8 @@ class RandomGenerator(Generator) :
 
     @property
     def gen_list(self):
+        """Returns generator list property of the object.
+        """
         return self._gen_list
 
     @gen_list.setter
@@ -253,9 +256,21 @@ class RandomGenerator(Generator) :
                     assert issubclass(gen,Generator) #Check if the value is a generator
                     self._gen_list.append(gen(sizes))
 
-    def generate(self):
+    def generate(self, size=None):
+        """_summary_
+
+        Parameters
+        ----------
+        size : `int`|None, optional
+            If `int` type : set the generated graph size. If None choose randomly in sizes, by default None
+
+        Returns
+        -------
+        `torch_geometric.data.Data`
+            A graph object from networkx
+        """
         gen = np.random.choice(self.gen_list, p=self.gen_prob)
-        return gen.generate()
+        return gen.generate(size = size)
 
 def random_generator(sizes) :
     """Create a generator that, each time it is called, ramdomly sample a graph from one of the following

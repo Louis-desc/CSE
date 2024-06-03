@@ -1,6 +1,8 @@
-"""package to generate loaders object that yield OTF Batch of graphs."""
-from torch_geometric.utils.convert import from_networkx
+"""package to generate loaders object that yield OTF Batch of graphs.
+This package use Generator from `random_graph_generator` and hence takes networkX graphs as input.
+However the OTF_container change types to torch_geometric.data.Data"""
 from torch_geometric.loader import DataLoader
+from utils.torch_ml import to_pyg_data
 import data.random_graph_generator as rgg
 
 def gen_data_loaders( epoch_size:int=1000, batch_size:int=64, generator:rgg.Generator=rgg.RandomGenerator):
@@ -34,7 +36,7 @@ def gen_data_loaders( epoch_size:int=1000, batch_size:int=64, generator:rgg.Gene
 
 
 class OTFContainer(list) :
-    """On-The-Fly Container that iterate over a generator object"""
+    """On-The-Fly Container that iterate over a graph generator object"""
     def __init__(self,generator:rgg.Generator,length:int) :
         """The OTFContainer generate a sample of an object using `generator` when it is needed. 
         The Container have a given `length`
@@ -42,7 +44,7 @@ class OTFContainer(list) :
         Parameters
         ----------
         generator : rgg.Generator
-            Generates a graph
+            Generates a networkX graph
         length : int
             length of the container
         """
@@ -56,18 +58,18 @@ class OTFContainer(list) :
 
     def __iter__(self):
         for _ in range(self._len):
-            yield from_networkx(self._generator.generate())
+            yield to_pyg_data(self._generator.generate())
 
     def __next__(self) :
         if self._index < self._len :
             self._index += 1
-            return from_networkx(self._generator.generate())
+            return to_pyg_data(self._generator.generate())
 
     def __getitem__(self,i):
         if isinstance(i,slice) :
             OTF_L = []
             for _ in range(self._len)[i]:
-                OTF_L.append(from_networkx(self._generator.generate()))
+                OTF_L.append(to_pyg_data(self._generator.generate()))
             return OTF_L
         else :
-            return from_networkx(self._generator.generate())
+            return to_pyg_data(self._generator.generate())
