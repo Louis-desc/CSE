@@ -1,6 +1,7 @@
 """utility functions for general machine learning purposes in Pytorch"""
 import torch
 import torch_geometric
+import torch_geometric.data
 import networkx as nx
 from torch_geometric.utils.convert import from_networkx
 
@@ -24,7 +25,9 @@ def get_device():
     return DEVICE_CACHE
 
 def to_pyg_data(graph:nx.Graph) -> torch_geometric.data.Data:
-    """Transform networkx Graph into torch_geometric Data
+    """Transform networkx Graph into torch_geometric Data. 
+    - The torch geometric graph is feature-free. 
+    - num_nodes is computed
 
     Parameters
     ----------
