@@ -56,7 +56,7 @@ class NeuroMatchNetwork(nn.Module) : # Refers to the SkipLastGNN class from the 
 
     def forward(self,data) :
         """Forward method of Neural Network module"""
-        x = data.node_feature
+        x = data.x
         edge_index = data.edge_index
         batch = data.batch
 
@@ -68,7 +68,7 @@ class NeuroMatchNetwork(nn.Module) : # Refers to the SkipLastGNN class from the 
             skip_vals = self.learnable_skip[i,:i+1].unsqueeze(0).unsqueeze(-1)
             curr_emb = all_emb * torch.sigmoid(skip_vals)
             curr_emb = curr_emb.view(x.size(0), -1)
-            x = conv[i](curr_emb, edge_index)
+            x = conv(curr_emb, edge_index)
             x = F.relu(x)
             x = F.dropout(x, p=self.dropout, training=self.training,)    #What is this dropout use for ?
             emb = torch.cat((emb, x), 1)
@@ -76,7 +76,19 @@ class NeuroMatchNetwork(nn.Module) : # Refers to the SkipLastGNN class from the 
 
         emb = pyg_nn.global_add_pool(emb, batch)
         emb = self.post_mp(emb)
+        return emb
 
     def loss(self, pred, label):
         """Negative log likelihood Loss Function"""
         return F.nll_loss(pred, label)
+
+
+def nm_criterion(pos_target_emb, pos_query_emb,neg_target_emb, neg_query_emb,margin=0.1):
+    """neuromatch criterion impl"""
+    e_pos = torch.max(torch.zeros_like(pos_target_emb),pos_query_emb-pos_target_emb)**2
+    e_neg = torch.max(torch.zeros_like(neg_target_emb),neg_query_emb-neg_target_emb)**2
+
+    neg_loss = torch.sum(torch.max(torch.zeros_like(e_neg),margin - e_neg))
+    pos_loss = torch.sum(e_pos)
+
+    return neg_loss+pos_loss
