@@ -1,11 +1,12 @@
 """package to generate loaders object that yield OTF Batch of graphs.
 This package use Generator from `random_graph_generator` and hence takes networkX graphs as input.
 However the OTF_container change types to torch_geometric.data.Data"""
+from typing import Tuple, List
 from torch_geometric.loader import DataLoader
 from utils.torch_ml import to_pyg_data
 import data.random_graph_generator as rgg
 
-def gen_data_loaders( epoch_size:int=1000, batch_size:int=64, generator:rgg.Generator=rgg.RandomGenerator):
+def gen_data_loaders( epoch_size:int=1000, batch_size:int=64, generator:rgg.Generator=rgg.RandomGenerator) -> Tuple[DataLoader,DataLoader,List[None]]:
     """Generate two On The Fly dataloaders for positive and negative examples for the whole epoch. 
     Each dataloaders wild yield a batch half the sized of total `batch_size`. 
 

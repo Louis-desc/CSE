@@ -1,7 +1,10 @@
 """Generating Batch"""
+from typing import Tuple
+
 import random
 import torch
 import networkx as nx
+
 from torch_geometric import data as pyg_data
 from torch_geometric.utils import k_hop_subgraph
 from torch_geometric.utils.convert import to_networkx
@@ -10,7 +13,8 @@ from torch_geometric.utils.convert import to_networkx
 from utils.torch_ml import to_pyg_data
 import data.random_graph_generator as rgg
 
-def augment_batch(pos_target:pyg_data.Batch, neg_target:pyg_data.Batch, generator:rgg.Generator) :   #Refering to gen_batch functions in original git
+def augment_batch(pos_target:pyg_data.Batch, neg_target:pyg_data.Batch, generator:rgg.Generator) \
+    -> Tuple[pyg_data.Batch,pyg_data.Batch,pyg_data.Batch,pyg_data.Batch]:   #Refering to gen_batch functions in original git
     """Generate a batch of data with positive and negative examples. 
     Samples subgraphs from two target graphs (one for positive and one for negative examples). 
 
@@ -28,8 +32,9 @@ def augment_batch(pos_target:pyg_data.Batch, neg_target:pyg_data.Batch, generato
 
     Returns
     -------
-    _type_
-        _description_
+    pos_target : pyg_data.Batch, pos_query : pyg_data.Batch,
+    neg_target : pyg_data.Batch, neg_query : pyg_data.Batch
+        return the augmented batch with sampled subgraphs and anchor_feature
     """
 
     # ---- Positive examples ----
