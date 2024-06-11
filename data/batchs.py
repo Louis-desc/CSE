@@ -1,4 +1,5 @@
-"""Generating Batch"""
+"""(Mini-)Batch Handling and Generation
+This module deals with creating positive and negative example for the training"""
 from typing import Tuple
 
 import random
@@ -9,9 +10,9 @@ from torch_geometric import data as pyg_data
 from torch_geometric.utils import k_hop_subgraph
 from torch_geometric.utils.convert import to_networkx
 
-
 from utils.torch_ml import to_pyg_data
 import data.random_graph_generator as rgg
+
 
 def augment_batch(pos_target:pyg_data.Batch, neg_target:pyg_data.Batch, generator:rgg.Generator) \
     -> Tuple[pyg_data.Batch,pyg_data.Batch,pyg_data.Batch,pyg_data.Batch]:   #Refering to gen_batch functions in original git
@@ -65,7 +66,7 @@ def augment_batch(pos_target:pyg_data.Batch, neg_target:pyg_data.Batch, generato
             fake_anchor = random.choice(list(range(g_quer.num_nodes)))
             g_quer.x = gen_anchor_feature(g_quer,fake_anchor) #Adding a fake anchor_feature for the query
 
-            g_tar = g #Normally, g is already a deep_copy of our initial batch 
+            g_tar = g #Normally, g is already a deep_copy of our initial batch
             fake_anchor = random.choice(list(range(g_tar.num_nodes)))
             g_tar.x = gen_anchor_feature(g_tar,fake_anchor) #Adding a fake anchor_feature for the target
 
@@ -117,7 +118,7 @@ def sample_subgraph(graph:pyg_data.Data, train:bool, use_hard_neg:bool=False) :
     graph.x = gen_anchor_feature(graph,start_node)
 
     # ---- Query graph ----
-    neighood = k_hop_subgraph(start_node,k,graph.edge_index)
+    neighood = k_hop_subgraph(start_node,k,graph.edge_index,relabel_nodes=True)
     ng_graph = pyg_data.Data(edge_index=neighood[1],num_nodes=int(len(neighood[0])))
     ng_graph.x = gen_anchor_feature(ng_graph,neighood[2])
     # ------    ------
@@ -128,14 +129,16 @@ def sample_subgraph(graph:pyg_data.Data, train:bool, use_hard_neg:bool=False) :
         nx_ng = to_networkx(ng_graph,to_undirected=True)
         saved_x = ng_graph.x
         non_edges = list(nx.non_edges(nx_ng))
-        for u, v in random.sample(non_edges, random.randint(1, min(max(len(non_edges),2),5))): #Adding up to a maximum of 5 edges more
+        add_edges = []
+        for u, v in random.sample(non_edges, min(random.randint(1,5),len(non_edges))): #Adding up to a maximum of 5 edges more
             nx_ng.add_edge(u,v)
-        ng_graph = to_pyg_data(nx_ng)
-        ng_graph.x = saved_x                                                             #Here I use exactly the same anchor. It could be modified.
+            add_edges.append((u,v))
+        new_ng_graph = to_pyg_data(nx_ng)
+        new_ng_graph.x = saved_x                                   #Here I use exactly the same anchor. It could be modified.
+    else :
+        new_ng_graph = ng_graph
 
-
-    return graph, ng_graph
-
+    return graph, new_ng_graph
 
 
 def gen_anchor_feature(graph:pyg_data.Data,anchor:int)->torch.Tensor:
@@ -159,4 +162,4 @@ def gen_anchor_feature(graph:pyg_data.Data,anchor:int)->torch.Tensor:
             anchor_feature.append(torch.ones(1))
         else :
             anchor_feature.append(torch.zeros(1))
-    return torch.tensor(anchor_feature)
+    return torch.tensor(anchor_feature).unsqueeze(-1)
