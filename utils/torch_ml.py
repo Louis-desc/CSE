@@ -18,8 +18,8 @@ def get_device():
         Can be device(cuda) or device(cpu)
     """
     global DEVICE_CACHE
-    if device_cache is None:
-        device_cache = torch.device("cuda") if torch.cuda.is_available() \
+    if DEVICE_CACHE is None:
+        DEVICE_CACHE = torch.device("cuda") if torch.cuda.is_available() \
             else torch.device("cpu")
         #device_cache = torch.device("cpu")
     return DEVICE_CACHE
