@@ -4,6 +4,7 @@ import torch
 import torch_geometric.utils as pyg_utils
 import networkx as nx
 import numpy as np
+from utils.torch_ml import get_device
 
 
 # --- Not for import functions
@@ -105,3 +106,23 @@ def compute_identity(edge_index, n, k):
         diag_all.append(torch.diag(adj_power))
     diag_all = torch.stack(diag_all, dim=1)
     return diag_all
+
+def predict_pretrain(predict):
+    """Pretraining function for a NeuroMatch prediction object, 
+    it makes the prediction models able to predict if two (embedding like) values are equal or not. 
+
+    Parameters
+    ----------
+    predict : NM.NeuroMatchPred
+    """
+    print("Pretrain Prediction Model")
+    labels = torch.tensor([1]*32 + [0]*32).to(get_device())
+    predict.model.train()
+    for _ in range(10000) :
+        pos = torch.rand(32,64).to(get_device())
+        neg_tar = torch.rand(32,64).to(get_device())
+        neg_que = torch.rand(32,64).to(get_device())
+        shuf = torch.randperm(64)
+        emb_targets = torch.cat((pos, neg_tar), dim=0)[shuf]
+        emb_querys = torch.cat((pos, neg_que), dim=0)[shuf]
+        predict.train(emb_targets,emb_querys,labels[shuf])
