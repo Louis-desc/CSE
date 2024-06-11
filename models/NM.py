@@ -1,9 +1,15 @@
+"""Models and functions for training and using NeuroMatch"""
+from typing import Union
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.optim as optim
 import torch_geometric.nn as pyg_nn
 
 
+from utils.preprocess import predict_pretrain
+
+# --- Neuro Match Embedding Model with SAGE GNN ---
 class NeuroMatchNetwork(nn.Module) : # Refers to the SkipLastGNN class from the initial project
     """GNN that embbed a node of a graph. The name is to be changed (once I understand better what each part is doing ...)
     """
@@ -19,6 +25,7 @@ class NeuroMatchNetwork(nn.Module) : # Refers to the SkipLastGNN class from the 
     def __init__(self, input_dim :int=1, hidden_dim :int=64, output_dim :int=64, aggr :str="sum",
                  n_layers :int=8,dropout :float=0.0,skip :str="learnable",conv_type :str= "SAGE") -> None:
         super().__init__()
+        #--- Properties and object attributes ---
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
@@ -28,31 +35,34 @@ class NeuroMatchNetwork(nn.Module) : # Refers to the SkipLastGNN class from the 
         self.skip = skip
         self.conv_type = conv_type
         self.learnable_skip = nn.Parameter(torch.ones(self.n_layers,self.n_layers))
-        #----------
+        #----
 
+        #--- Defining the multiples NN layers for the forward func ---
         self.pre_mp = nn.Sequential(nn.Linear(self.input_dim,self.hidden_dim))
 
-        #----------
-        self.conv_model = pyg_nn.SAGEConv
-        #Initialize the convolution list len = n_layers
+        self.conv_model = pyg_nn.SAGEConv #If the model were to be changed, it would be here 
 
+        #Initialize the convolution list len = n_layers
         self.convs = nn.ModuleList()
+
         for l in range(self.n_layers):
+            #Dealing with the input for skipping layers in learning (see Over-squashing)
             hidden_input_dim = self.hidden_dim * (l + 1)
             self.convs.append(self.conv_model(hidden_input_dim, self.hidden_dim, aggr=self.aggr))
 
         post_input_dim = self.hidden_dim * (self.n_layers +1)
-        #-----
 
         self.post_mp = nn.Sequential(
-            nn.Linear(post_input_dim, self.hidden_dim), 
-            nn.Dropout(self.dropout),                      
+            nn.Linear(post_input_dim, self.hidden_dim),
+            nn.Dropout(self.dropout),
             nn.LeakyReLU(0.1),
             nn.Linear(self.hidden_dim, self.output_dim),
             nn.ReLU(),
             nn.Linear(self.hidden_dim, 256),
             nn.ReLU(),
             nn.Linear(256, self.hidden_dim))
+
+        #-----
 
     def forward(self,data) :
         """Forward method of Neural Network module"""
@@ -83,6 +93,8 @@ class NeuroMatchNetwork(nn.Module) : # Refers to the SkipLastGNN class from the 
         return F.nll_loss(pred, label)
 
 
+# --- Functions to use with the NM model ---
+
 def nm_criterion(pos_target_emb, pos_query_emb,neg_target_emb, neg_query_emb,margin=0.1):
     """neuromatch criterion impl"""
     e_pos = torch.max(torch.zeros_like(pos_target_emb),pos_query_emb-pos_target_emb)**2
@@ -92,3 +104,92 @@ def nm_criterion(pos_target_emb, pos_query_emb,neg_target_emb, neg_query_emb,mar
     pos_loss = torch.sum(e_pos)
 
     return neg_loss+pos_loss
+
+def treshold_predict(emb_target:torch.Tensor, emb_query:torch.Tensor, treshold:float = 0.1)->bool:
+    """Predict if the graph b (corresponding to embedding emb_b) is a subgraph of a (emb_a).
+    This version use a simple regular treshold to classify results.
+
+    Parameters
+    ----------
+    emb_a : `torch.Tensor`
+        Embedding of the potential target graph
+    emb_b : `torch.Tensor`
+        Embedding of the potential subgraph
+    treshold : `float`
+        Treshold on which to decide if a graph is or not a subgraph (based on emb difference)
+
+    Returns
+    -------
+    `bool`
+        Boolean indicating if 
+    """
+
+    e = torch.sum(torch.max(torch.zeros_like(emb_target,
+            device=emb_target.device), emb_query - emb_target)**2, dim=1)
+
+    return e < treshold
+
+# --- Classification model
+
+class NeuroMatchPred :   #Refers to the clf_model (and clf_...) in the original git
+    """Classification class for Neuromatch, according to the neural-subgraph-learning git implementation
+    This class use a basic linear model to decide of the treshold during the learning process"""
+    lr = 1e-3
+    def __init__(self,lr=lr):
+        self.lr = lr
+        self.model = nn.Sequential(nn.Linear(1, 2), nn.LogSoftmax(dim=-1))
+        self.opt = optim.Adam(self.model.parameters(), lr=lr)
+        self.criterion = nn.NLLLoss()
+
+        predict_pretrain(self)
+
+    def predict(self, emb_target:torch.Tensor, emb_query:torch.Tensor) -> torch.BoolTensor :
+        """Predict if the query(s) is a subgraph for the associated target(s).
+
+        Parameters
+        ----------
+        emb_target : torch.Tensor
+            Embedded target graphs.
+        emb_query : torch.Tensor
+            Embedded Graphs to decide if they are (or not) subgraph of their associated target graph.
+
+        Returns
+        -------
+        torch.BoolTensor
+            Returns the boolean tensor with final classification. True if the graph is a subgraph, False o.w.
+        """
+        e = self._e(emb_target,emb_query)
+        pred = self.model(e)
+        pred = pred.argmax(dim=-1).to(torch.bool)
+        return pred
+
+
+    def train(self,emb_target:torch.Tensor, emb_query:torch.Tensor,labels:torch.Tensor) -> Union[torch.FloatTensor, float]:
+        """Training process (for a single loop) for the prediction model.
+
+        Parameters
+        ----------
+        emb_target : torch.Tensor
+            Embedded target graphs.
+        emb_query : torch.Tensor
+            Embedded Graphs to decide if they are (or not) subgraph of their associated target graph.
+        labels : torch.Tensor
+            Ground truth for the training.
+
+        Returns
+        -------
+        torch.FloatTensor, float
+            returns the prediction tensor of shape (batch_size,2) and the loss of the model
+        """
+        with torch.no_grad():
+            e = self._e(emb_target,emb_query)
+        self.model.zero_grad()
+        pred = self.model(e)
+        clf_loss = self.criterion(pred, labels)
+        clf_loss.backward()
+        self.opt.step()
+
+        return pred, clf_loss.item()
+
+    def _e(self, emb_target, emb_query):
+        return torch.sum(torch.max(torch.zeros_like(emb_target, device=emb_target.device), emb_query - emb_target)**2, dim=1).unsqueeze(1)
