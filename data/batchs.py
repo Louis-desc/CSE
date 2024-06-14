@@ -7,10 +7,9 @@ import torch
 import networkx as nx
 
 from torch_geometric import data as pyg_data
-from torch_geometric.utils import k_hop_subgraph
-from torch_geometric.utils.convert import to_networkx
 
 from utils.torch_ml import to_pyg_data
+from utils.graph import k_nodes_walk, relabel_graph_by_int
 import data.random_graph_generator as rgg
 
 
@@ -112,33 +111,32 @@ def sample_subgraph(graph:pyg_data.Data, train:bool, use_hard_neg:bool=False) :
         and the second one is the sampled query (with anchor_feature). 
     """
     min_size = 5
-    d = 1 if train else 0                                #I'm not sure of why they use that
-    k = random.randint(min_size - d,graph.num_nodes-1)   #Choose the k for the k-neighborhood
-    start_node = random.choice(list(range(graph.num_nodes)))#Choose the starting point of the walk
+    d = 1 if train else 0                                       #I'm not sure of why they use that
+    k = random.randint(min_size - d,graph.num_nodes-1)          #Choose the length of the random walk
+    start_node = random.choice(list(range(graph.num_nodes)))    #Choose the starting point of the walk
+
     graph.x = gen_anchor_feature(graph,start_node)
 
     # ---- Query graph ----
-    neighood = k_hop_subgraph(start_node,k,graph.edge_index,relabel_nodes=True)
-    ng_graph = pyg_data.Data(edge_index=neighood[1],num_nodes=int(len(neighood[0])))
-    ng_graph.x = gen_anchor_feature(ng_graph,neighood[2])
+    nx_query = k_nodes_walk(graph,start_node,k)
+    nx_query, permutation = relabel_graph_by_int(nx_query)
     # ------    ------
     #For more details, check k_hop_subgraph doc (it doesn't actually return a pyG.Data object)
 
     # ---- Negative examples handeling ----
     if use_hard_neg and train :
-        nx_ng = to_networkx(ng_graph,to_undirected=True)
-        saved_x = ng_graph.x
-        non_edges = list(nx.non_edges(nx_ng))
+        # nx_ng = to_networkx(ng_graph,to_undirected=True)
+        # saved_x = ng_graph.x
+        non_edges = list(nx.non_edges(nx_query))
         add_edges = []
         for u, v in random.sample(non_edges, min(random.randint(1,5),len(non_edges))): #Adding up to a maximum of 5 edges more
-            nx_ng.add_edge(u,v)
+            nx_query.add_edge(u,v)
             add_edges.append((u,v))
-        new_ng_graph = to_pyg_data(nx_ng)
-        new_ng_graph.x = saved_x                                   #Here I use exactly the same anchor. It could be modified.
-    else :
-        new_ng_graph = ng_graph
 
-    return graph, new_ng_graph
+    query = to_pyg_data(nx_query)
+    query.x = gen_anchor_feature(query,permutation[start_node])
+
+    return graph, query
 
 
 def gen_anchor_feature(graph:pyg_data.Data,anchor:int)->torch.Tensor:
