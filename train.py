@@ -15,10 +15,11 @@ from utils.torch_ml import get_device
 from data.loaders import gen_data_loaders
 from data.batchs import augment_batch
 from models.NM import NeuroMatchNetwork, NeuroMatchPred, nm_criterion
+from evalutation import training_test, generating_evaluation_batchs
 # ------      ------
 
 # ---- Constants ----
-MODEL_PATH = "ckpt/model.pt"
+MODEL_PATH = "ckpt/"
 GRAPH_SIZES = np.arange(6, 30)
 EPOCHS = 1000
 EPOCH_INTERVAL = 1000
@@ -68,6 +69,7 @@ def train(model:NeuroMatchNetwork,prediction_model:NeuroMatchPred,generator:rgg.
             out_queue.put(("step", (loss.item(), pred_acc, pred_loss)))
 
 def train_loop():
+    """To be modified"""
     mp.set_start_method("spawn", force=True)
     if not os.path.exists(os.path.dirname(MODEL_PATH)):
         os.makedirs(os.path.dirname(MODEL_PATH))
@@ -82,6 +84,9 @@ def train_loop():
     generator = rgg.random_generator(GRAPH_SIZES)
 
     writer = SummaryWriter()
+
+    #evaluation batch
+    batchs_list = generating_evaluation_batchs(generator)
 
     # --- Creating parrallel workers
     workers = []
@@ -104,6 +109,13 @@ def train_loop():
             writer.add_scalar("predict/loss",pred_loss,batch_n)
             writer.add_scalar("embedding/loss",loss,batch_n)
             batch_n += 1
+        print(" "*100 ,end="\r")# Cleaning the line
+        training_test(emb_model,pred_model,batchs_list,writer,epoch)
+        #Saving models (only every 10 epochs)
+        if (epoch+1)%10 == 0:
+            torch.save(emb_model.state_dict(), MODEL_PATH+f"emb_model_{epoch}.pt")
+            torch.save(pred_model.model.state_dict(), MODEL_PATH+f"pred_model_linear_{epoch}.pt")
+        print("-"*50)
 
     # --- Ending the training
     for i in range(N_WORKERS):
