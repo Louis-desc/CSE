@@ -3,7 +3,9 @@
 ## Repo architecture
 
 - `models.*` : regroup every deeplearning model used
-- `data.*` : Deal with data generation and pre-treatment. 
+- `data.*` : Deal with data generation and pre-treatment.
+- `utils.*` : regroup every utility functions
+- `ckpt` : is the place where NeuroMatch Models are saved.  
 
 ## Systems settings
 

@@ -1,3 +1,7 @@
 Testnb/
 *__pycache__
 .pylintrc
+runs/
+.DS_Store
+ckpt/
+plots/
