@@ -192,4 +192,35 @@ class NeuroMatchPred :   #Refers to the clf_model (and clf_...) in the original 
         return pred, clf_loss.item()
 
     def _e(self, emb_target, emb_query):
+        """returns a vector of e = max(0, z_q - z_t)**2"""
         return torch.sum(torch.max(torch.zeros_like(emb_target, device=emb_target.device), emb_query - emb_target)**2, dim=1).unsqueeze(1)
+
+    @classmethod
+    def hinge_loss(cls,emb_target, emb_query):
+        """returns a vector of e = max(0, z_q - z_t)**2"""
+        return torch.sum(torch.max(torch.zeros_like(emb_target, device=emb_target.device), emb_query - emb_target)**2, dim=1).unsqueeze(1)
+
+    @classmethod
+    def treshold_predict(cls, emb_target:torch.Tensor, emb_query:torch.Tensor, treshold:float = 0.1)->bool:
+        """Predict if the graph b (corresponding to embedding emb_b) is a subgraph of a (emb_a).
+        This version use a simple regular treshold to classify results.
+
+        Parameters
+        ----------
+        emb_a : `torch.Tensor`
+            Embedding of the potential target graph
+        emb_b : `torch.Tensor`
+            Embedding of the potential subgraph
+        treshold : `float`
+            Treshold on which to decide if a graph is or not a subgraph (based on emb difference)
+
+        Returns
+        -------
+        `bool`
+            Boolean indicating if 
+        """
+
+        e = torch.sum(torch.max(torch.zeros_like(emb_target,
+                device=emb_target.device), emb_query - emb_target)**2, dim=1)
+
+        return e < treshold
