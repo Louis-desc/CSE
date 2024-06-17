@@ -97,13 +97,16 @@ class NeuroMatchNetwork(nn.Module) : # Refers to the SkipLastGNN class from the 
 
 def nm_criterion(pos_target_emb, pos_query_emb,neg_target_emb, neg_query_emb,margin=0.1):
     """neuromatch criterion impl"""
-    e_pos = torch.max(torch.zeros_like(pos_target_emb),pos_query_emb-pos_target_emb)**2
-    e_neg = torch.max(torch.zeros_like(neg_target_emb),neg_query_emb-neg_target_emb)**2
+    e_pos = torch.max(torch.zeros_like(pos_target_emb),pos_query_emb-pos_target_emb)**2 #shape = (32,64)
+    e_neg = torch.max(torch.zeros_like(neg_target_emb),neg_query_emb-neg_target_emb)**2 #shape = (32,64)
 
-    neg_loss = torch.sum(torch.max(torch.zeros_like(e_neg),margin - e_neg))
-    pos_loss = torch.sum(e_pos)
+    e_neg_reduced = torch.sum(e_neg,dim=1) #shape = (32,1)
+    e_pos_reduced = torch.sum(e_pos,dim=1) #shape = (32,1)
 
-    return neg_loss+pos_loss
+    neg_loss = torch.sum(torch.max(torch.zeros_like(e_neg_reduced),margin - e_neg_reduced)) #shape = (1,1)
+    pos_loss = torch.sum(e_pos_reduced) #shape = (1,1)
+
+    return torch.sum(neg_loss+pos_loss)
 
 def treshold_predict(emb_target:torch.Tensor, emb_query:torch.Tensor, treshold:float = 0.1)->bool:
     """Predict if the graph b (corresponding to embedding emb_b) is a subgraph of a (emb_a).
