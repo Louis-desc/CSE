@@ -134,14 +134,15 @@ def treshold_predict(emb_target:torch.Tensor, emb_query:torch.Tensor, treshold:f
 class NeuroMatchPred :   #Refers to the clf_model (and clf_...) in the original git
     """Classification class for Neuromatch, according to the neural-subgraph-learning git implementation
     This class use a basic linear model to decide of the treshold during the learning process"""
-    lr = 1e-3
-    def __init__(self,lr=lr):
+    lr = 1e-4
+    def __init__(self,lr:float=lr,pretrain:bool=True):
         self.lr = lr
         self.model = nn.Sequential(nn.Linear(1, 2), nn.LogSoftmax(dim=-1))
         self.opt = optim.Adam(self.model.parameters(), lr=lr)
         self.criterion = nn.NLLLoss()
 
-        predict_pretrain(self)
+        if pretrain:
+            predict_pretrain(self)
 
     def predict(self, emb_target:torch.Tensor, emb_query:torch.Tensor) -> torch.BoolTensor :
         """Predict if the query(s) is a subgraph for the associated target(s).
