@@ -20,11 +20,11 @@ from models.NM import NeuroMatchPred
 # --- Constants ---
 
 GRAPH_SIZES = np.arange(6, 30)
-EVAL_BATCH_SIZE = 64
+EVAL_SIZE = 64
 
 # --- Functions ---
 
-def training_test(emb_model:nn.Module, pred_model:NeuroMatchPred, batchs_list:list, writer:SummaryWriter, epoch:int)-> None:
+def training_test(emb_model:nn.Module, pred_model:NeuroMatchPred, batchs_list:list, writer:SummaryWriter, epoch:int)-> Tuple[torch.Tensor,torch.Tensor]:
     """Training validation routine for each epoch"""
     emb_model.eval()
     pred_model.model.eval()
@@ -71,8 +71,9 @@ def training_test(emb_model:nn.Module, pred_model:NeuroMatchPred, batchs_list:li
     writer.add_scalar("eval/TN", tn, epoch)
     writer.add_scalar("eval/FP", fp, epoch)
     writer.add_scalar("eval/FN", fn, epoch)
-    
+
     print(f"Prediction Metrics : Accuracy : {acc}, Precision : {prec}, Recall : {recall}")
+    return mean_loss, acc
 
 
 def generating_evaluation_batchs(generator=None) ->List[Tuple[torch.Tensor,torch.Tensor,torch.Tensor,torch.Tensor]]:
@@ -94,7 +95,7 @@ def generating_evaluation_batchs(generator=None) ->List[Tuple[torch.Tensor,torch
     if generator is None: #Could do better here
         generator =random_generator(GRAPH_SIZES)
 
-    loaders = gen_data_loaders(epoch_size=EVAL_BATCH_SIZE ,generator=generator)
+    loaders = gen_data_loaders(mini_epoch=EVAL_SIZE ,generator=generator)
 
     for pos_batch, neg_batch, _ in zip(*loaders) :
         pos_target, pos_query, neg_target, neg_query = augment_batch(pos_batch,neg_batch,generator)

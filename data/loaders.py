@@ -6,14 +6,14 @@ from torch_geometric.loader import DataLoader
 from utils.torch_ml import to_pyg_data
 import data.random_graph_generator as rgg
 
-def gen_data_loaders( epoch_size:int=1000, batch_size:int=64, generator:rgg.Generator=rgg.RandomGenerator) -> Tuple[DataLoader,DataLoader,List[None]]:
+def gen_data_loaders( mini_epoch:int=100, batch_size:int=64, generator:rgg.Generator=rgg.RandomGenerator) -> Tuple[DataLoader,DataLoader,List[None]]:
     """Generate two On The Fly dataloaders for positive and negative examples for the whole epoch. 
     Each dataloaders wild yield a batch half the sized of total `batch_size`. 
 
     Parameters
     ----------
-    epoch_size : `int`
-        epoch size, default 1000
+    mini_epoch : `int`
+        epoch size, default 100
     batch_size : `int`
         size of batch, default 64
     generator : `random_graph_generator.Generator`
@@ -28,11 +28,11 @@ def gen_data_loaders( epoch_size:int=1000, batch_size:int=64, generator:rgg.Gene
     loaders = []
     single_loader_batch_size = batch_size//2
     for _ in range(2):
-        dataset_length = single_loader_batch_size * epoch_size
+        dataset_length = single_loader_batch_size * mini_epoch
         OTF_ds = OTFContainer(generator,dataset_length)
 
         loaders.append(DataLoader(OTF_ds, batch_size=single_loader_batch_size))
-    loaders.append([None]*(epoch_size))
+    loaders.append([None]*(mini_epoch))
     return loaders
 
 
