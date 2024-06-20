@@ -2,21 +2,29 @@
 """
 
 # --- Import ---
-from typing import List,Tuple, Union
+from typing import List,Tuple
+import random
 
 import numpy as np
 import matplotlib.pyplot as plt
+import networkx as nx
 
 from torch.utils.tensorboard import SummaryWriter
 from torch import nn
 import torch
 from sklearn.metrics import roc_auc_score, average_precision_score, confusion_matrix, mean_squared_error, precision_recall_curve
+from torch_geometric.datasets import TUDataset
+import torch_geometric.data as pyg_data
+import torch_geometric.utils as pyg_utils
 
+from data.batchs import sample_subgraph
 from data.batchs import augment_batch
+from data.batchs import gen_anchor_feature
 from data.loaders import gen_data_loaders
 from data.random_graph_generator import random_generator
-from utils.torch_ml import get_device
+from utils.torch_ml import get_device,to_pyg_data
 from models.NM import NeuroMatchPred
+
 # --- Constants ---
 
 GRAPH_SIZES = np.arange(6, 30)
@@ -110,7 +118,7 @@ def generating_evaluation_batchs(generator=None) ->List[Tuple[torch.Tensor,torch
     return batchs_list
 
 
-def evaluation_predict(emb_model:nn.Module, pred_model:NeuroMatchPred, batchs_list:list)->Union[torch.BoolTensor,torch.BoolTensor,torch.FloatTensor]:
+def evaluation_predict(emb_model:nn.Module, pred_model:NeuroMatchPred, batchs_list:list)->Tuple[torch.BoolTensor,torch.BoolTensor,torch.FloatTensor]:
     """Return the list of predictions, labels and the hinge loss for every graphs in the batchs_list 
     using the embedding model and the prediction model
 
@@ -189,4 +197,66 @@ def nm_pr_curve(emb_model:nn.Module, pred_model:NeuroMatchPred, batchs_list:list
     plt.ylabel("Precision")
     plt.savefig("plots/precision-recall-curve.png")
     print("Saved PR curve plot in plots/precision-recall-curve.png")
-    
+
+
+def enzyme_test(emb_model:nn.Module, pred_model:NeuroMatchPred)-> Tuple[float,float,float]:
+    """Test for the Enzyme dataset
+
+    Parameters
+    ----------
+    emb_model : nn.Module
+        Model for embedding graphs
+    pred_model : NeuroMatchPred
+        Model for predicting over the embedding
+
+    Returns
+    -------
+    Tuple[float,float,float]
+        return scores for the three different subtest. Each score is between 0 and 1, 0 being worst result to 1 perfect result. 
+        In this order : 
+        - Postive query (sampled from the graph) 
+        - Negative Random query (random graph query sample)
+    """
+    # --- Initialization ---
+    ds = TUDataset(root="../Testds/ENZYMES", name="ENZYMES")
+    generator =random_generator(range(6,126))
+    target, query = [], []
+    tries = 10
+
+    for graph in ds:
+        if graph.num_nodes < 6 or not nx.is_connected(pyg_utils.to_networkx(graph,to_undirected=True)) :
+            continue
+        g_tar, g_quer = sample_subgraph(graph,False)
+        target.append(g_tar)
+        query.append(g_quer)
+
+    n = len(target)
+    # --- Test prediction for positive ---
+    pos_query = pyg_data.Batch.from_data_list(query)
+    pos_target = pyg_data.Batch.from_data_list(target)
+    emb_target = emb_model(pos_target)
+    emb_query = emb_model(pos_query)
+    sum_pos = sum(pred_model.predict(emb_target,emb_query))
+    pos_score = sum_pos/n
+    # --- Test differences for randomly given graph ---
+    sum_neg_random = 0
+    for _ in range(tries) :
+        random_query = []
+        for k in range(n) :
+            g = to_pyg_data(generator.generate(query[k].num_nodes))
+            g.x = gen_anchor_feature(g,random.randint(0,g.num_nodes))
+            random_query.append(g)
+
+        neg_query = pyg_data.Batch.from_data_list(random_query)
+        emb_neg_query = emb_model(neg_query)
+        sum_neg_random += sum(~pred_model.predict(emb_target,emb_neg_query))
+
+    score_neg_random = sum_neg_random / (n*tries)
+    # --- Test differences when shuffling querries ---
+    sum_neg_shuffled = 0
+    for _ in range(tries):
+        shuffled_emb = emb_query[torch.randperm(emb_query.size()[0])]
+        sum_neg_shuffled += sum(~pred_model.predict(emb_target,shuffled_emb))
+    score_neg_shuffled = sum_neg_shuffled / (n*tries)
+
+    return pos_score, score_neg_random, score_neg_shuffled

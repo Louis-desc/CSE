@@ -89,7 +89,7 @@ def augment_batch(pos_target:pyg_data.Batch, neg_target:pyg_data.Batch, generato
     return pos_target, pos_query, neg_target, neg_query
 
 
-def sample_subgraph(graph:pyg_data.Data, train:bool, use_hard_neg:bool=False) :
+def sample_subgraph(graph:pyg_data.Data, train:bool, use_hard_neg:bool=False, min_size:int=4) :
     """Given a target `graph` sample a query that match (or don't match if `use_hard_neg` = True). 
     The query is anchored to a node. This node is indicated by a feature (one hot vector). 
     
@@ -103,6 +103,8 @@ def sample_subgraph(graph:pyg_data.Data, train:bool, use_hard_neg:bool=False) :
     use_hard_neg : bool, optional
         Indicate is the given graph is part of hard neg batch, by default False.
         If equals to true, the query subgraph sampled is modified.
+    min_size : int, optional 
+        Minimum size of the sampled query (in terms of nodes)
 
     Returns
     -------
@@ -110,9 +112,7 @@ def sample_subgraph(graph:pyg_data.Data, train:bool, use_hard_neg:bool=False) :
         Returns two pyg graph. The first one is the initial target graph (with anchor_feature) 
         and the second one is the sampled query (with anchor_feature). 
     """
-    min_size = 5
-    d = 1 if train else 0                                       #I'm not sure of why they use that
-    k = random.randint(min_size - d,graph.num_nodes-1)          #Choose the length of the random walk
+    k = random.randint(min_size,graph.num_nodes-1)          #Choose the length of the random walk
     start_node = random.choice(list(range(graph.num_nodes)))    #Choose the starting point of the walk
 
     graph.x = gen_anchor_feature(graph,start_node)
