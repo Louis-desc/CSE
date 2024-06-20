@@ -16,7 +16,7 @@ def k_nodes_walk(graph:pyg_data.Data, start_node:int, k:int)-> nx.Graph:
     graph : pyg_data.Data
         target graph to sample a walk from
     start_node : int
-        starting node of the walk
+        starting node for the walk
     k : int
         length of the walk (number of nodes)
 
@@ -28,12 +28,14 @@ def k_nodes_walk(graph:pyg_data.Data, start_node:int, k:int)-> nx.Graph:
     query_node = []
     frontier = [start_node]
     nx_graph = to_networkx(graph,to_undirected=True)
+    assert k < graph.num_nodes
     for _ in range(k):                                        #Random walk of `k` hops chosen in every neighbors of the current query
         new_node = random.choice(frontier)                                  #Choosing a node among the neighbors of the graph
         query_node.append(new_node)                                         #Adding the new node to the walk
         frontier += list(nx_graph.neighbors(new_node))                      #Modifying the frontier of the new graph
         frontier = [node for node in frontier if node not in query_node]    #Deleting already encountered nodes
-
+        if frontier == list() : 
+            break
     assert len(query_node) == len(set(query_node))
 
     return nx_graph.subgraph(query_node)
