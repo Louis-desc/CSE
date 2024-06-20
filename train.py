@@ -3,6 +3,7 @@
 
 # ---- Import library ----
 import os
+import sys
 import torch
 import torch.multiprocessing as mp
 import torch.optim as optim
@@ -23,9 +24,10 @@ MODEL_PATH = "ckpt/"
 GRAPH_SIZES = np.arange(6, 30)
 EPOCHS = 1000
 EPOCH_INTERVAL = 1000           # In number of batchs
-N_WORKERS = 6
-LR=1e-5                         #Original : 1e-4
+N_WORKERS = 8
+LR=1e-4                         #Original : 1e-4
 WEIGHT_DECAY = 0.0
+SCHEDULER_ON = False
 
 
 # ---- Functions ----
@@ -54,7 +56,7 @@ def train(model:NeuroMatchNetwork,prediction_model:NeuroMatchPred,generator:rgg.
                     filter_fn = filter(lambda p : p.requires_grad, model.parameters())
                     #We need to redefine the filter every minibatch to redefine the optimizer
                     opt = optim.Adam(filter_fn, lr, weight_decay=WEIGHT_DECAY)
-                else: 
+                else:
                     pass #if lr wasn't modified, it doesn't raise exception and continue
             else :
                 raise ChildProcessError
@@ -82,6 +84,7 @@ def train(model:NeuroMatchNetwork,prediction_model:NeuroMatchPred,generator:rgg.
             pred_acc = torch.mean((pred == labels).type(torch.float))
 
             out_queue.put(("step", (loss.item(), pred_acc, pred_loss)))
+    sys.exit(0)
 
 def train_loop():
     """To be modified"""
@@ -114,8 +117,9 @@ def train_loop():
     # --- initializing learning rate, optimizer and scheduler for embedding (to be passed to worker each time)
     filter_fn = filter(lambda p : p.requires_grad, emb_model.parameters())
     lr = LR
-    opt = optim.Adam(filter_fn, lr=LR, weight_decay=WEIGHT_DECAY)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(opt,patience=500,min_lr=1e-15,)
+    if SCHEDULER_ON:
+        opt = optim.Adam(filter_fn, lr=LR, weight_decay=WEIGHT_DECAY)
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(opt,patience=500,min_lr=1e-15,)
 
     # --- Training by epochs
     batch_n = 0
@@ -130,8 +134,9 @@ def train_loop():
             writer.add_scalar("predict/loss",pred_loss,batch_n)
             writer.add_scalar("embedding/loss",loss,batch_n)
             batch_n += 1
-            scheduler.step(loss)           # The Scheduler is monitoring embedding loss on every
-            lr = scheduler.get_last_lr()[-1]    # updating the learning rate if needed
+            if SCHEDULER_ON:
+                scheduler.step(loss)           # The Scheduler is monitoring embedding loss on every
+                lr = scheduler.get_last_lr()[-1]    # updating the learning rate if needed
             writer.add_scalar("learning rate", lr,batch_n)
 
         print(" "*100 ,end="\r")        # Cleaning the line
@@ -148,3 +153,7 @@ def train_loop():
         in_queue.put("done")
     for worker in workers:
         worker.join()
+
+
+if __name__ == "__main__":
+    train_loop()

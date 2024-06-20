@@ -40,7 +40,7 @@ class NeuroMatchNetwork(nn.Module) : # Refers to the SkipLastGNN class from the 
         #--- Defining the multiples NN layers for the forward func ---
         self.pre_mp = nn.Sequential(nn.Linear(self.input_dim,self.hidden_dim))
 
-        self.conv_model = pyg_nn.SAGEConv #If the model were to be changed, it would be here 
+        self.conv_model = pyg_nn.SAGEConv #If the model were to be changed, it would be here
 
         #Initialize the convolution list len = n_layers
         self.convs = nn.ModuleList()
@@ -60,7 +60,8 @@ class NeuroMatchNetwork(nn.Module) : # Refers to the SkipLastGNN class from the 
             nn.ReLU(),
             nn.Linear(self.hidden_dim, 256),
             nn.ReLU(),
-            nn.Linear(256, self.hidden_dim))
+            nn.Linear(256, self.hidden_dim)
+        )
 
         #-----
 
@@ -80,7 +81,7 @@ class NeuroMatchNetwork(nn.Module) : # Refers to the SkipLastGNN class from the 
             curr_emb = curr_emb.view(x.size(0), -1)
             x = conv(curr_emb, edge_index)
             x = F.relu(x)
-            x = F.dropout(x, p=self.dropout, training=self.training,)    #What is this dropout use for ?
+            x = F.dropout(x, p=self.dropout, training=self.training,)
             emb = torch.cat((emb, x), 1)
             all_emb = torch.cat((all_emb, x.unsqueeze(1)), 1) #all_emb(n+1) = all_emb(n) | x
 
@@ -106,7 +107,17 @@ def nm_criterion(pos_target_emb, pos_query_emb,neg_target_emb, neg_query_emb,mar
     neg_loss = torch.sum(torch.max(torch.zeros_like(e_neg_reduced),margin - e_neg_reduced)) #shape = (1,1)
     pos_loss = torch.sum(e_pos_reduced) #shape = (1,1)
 
-    return torch.sum(neg_loss+pos_loss)
+    return neg_loss+pos_loss
+
+def faulty_criterion(pos_target_emb, pos_query_emb,neg_target_emb, neg_query_emb,margin=0.1):
+    """Misimplemented criterion"""
+    e_pos = torch.max(torch.zeros_like(pos_target_emb),pos_query_emb-pos_target_emb)**2 #shape = (32,64)
+    e_neg = torch.max(torch.zeros_like(neg_target_emb),neg_query_emb-neg_target_emb)**2 #shape = (32,64)
+
+    neg_loss = torch.sum(torch.max(torch.zeros_like(e_neg),margin - e_neg)) #shape = (1,1)
+    pos_loss = torch.sum(e_pos) #shape = (1,1)
+
+    return neg_loss+pos_loss
 
 def treshold_predict(emb_target:torch.Tensor, emb_query:torch.Tensor, treshold:float = 0.1)->bool:
     """Predict if the graph b (corresponding to embedding emb_b) is a subgraph of a (emb_a).

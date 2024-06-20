@@ -34,8 +34,7 @@ def k_nodes_walk(graph:pyg_data.Data, start_node:int, k:int)-> nx.Graph:
         query_node.append(new_node)                                         #Adding the new node to the walk
         frontier += list(nx_graph.neighbors(new_node))                      #Modifying the frontier of the new graph
         frontier = [node for node in frontier if node not in query_node]    #Deleting already encountered nodes
-        if frontier == list() : 
-            break
+
     assert len(query_node) == len(set(query_node))
 
     return nx_graph.subgraph(query_node)
