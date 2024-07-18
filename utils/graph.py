@@ -1,15 +1,17 @@
 """Utility functions for graphs"""
 from typing import Tuple
+from abc import ABC, abstractmethod
 
 import random
 
 from torch_geometric import data as pyg_data
 from torch_geometric.utils.convert import to_networkx
 import networkx as nx
-
+import numpy as np
 
 def k_nodes_walk(graph:pyg_data.Data, start_node:int, k:int)-> nx.Graph:
-    """Returns a networkX graph that represent a random walk from `start_node` and with `k` nodes. 
+    """Returns a networkX subgraph induced by nodes that represent a random walk from `start_node` and with `k` nodes. 
+    It means that every edeges between the nodes of the walk are included in the subgraph (even if they are not used during the random walk).
 
     Parameters
     ----------
@@ -57,3 +59,41 @@ def relabel_graph_by_int(graph:nx.Graph) -> Tuple[nx.Graph, dict]:
     perm = {nodes[i] : i for i in range(graph.number_of_nodes())}
     relabeled_graph = nx.relabel_nodes(graph,perm)
     return relabeled_graph, perm
+
+
+# --- Abstract Class for graphs ---
+
+class Generator(ABC):
+    r"""
+    Abstract class of on the fly generator used in the dataset.
+    It generates on the fly graphs, which will be fed into the model.
+    """
+    def __init__(self, sizes=None):
+        self._sizes_list = sizes
+
+    def _get_size(self, size=None):
+        if size is None:
+            return np.random.choice(
+                self._sizes_list, size=1, replace=True
+            )[0]
+        else:
+            return size
+
+    def __next__(self) :
+        return self.generate()
+
+    def __iter__(self) :
+        return self
+
+    def __len__(self):
+        return 1
+
+    @abstractmethod
+    def generate(self):
+        r"""
+        Overwrite in subclass. Generates and returns a 
+        :class:`networkx.Graph` object
+
+        Returns:
+            :class:`networkx.Graph`: A networkx graph object.
+        """

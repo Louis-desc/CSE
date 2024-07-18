@@ -21,7 +21,8 @@ from data.batchs import sample_subgraph
 from data.batchs import augment_batch
 from data.batchs import gen_anchor_feature
 from data.loaders import gen_data_loaders
-from data.random_graph_generator import random_generator
+from data.random_graph_generator import random_generator,RandomGenerator
+from data.dataset import SyntheticDataset
 from utils.torch_ml import get_device,to_pyg_data
 from models.NM import NeuroMatchPred
 
@@ -32,7 +33,8 @@ EVAL_SIZE = 64
 
 # --- Functions ---
 
-def training_test(emb_model:nn.Module, pred_model:NeuroMatchPred, batchs_list:list, writer:SummaryWriter, epoch:int)-> Tuple[torch.Tensor,torch.Tensor]:
+def training_test(emb_model:nn.Module, pred_model:NeuroMatchPred, batchs_list:list, 
+                  writer:SummaryWriter, epoch:int)-> Tuple[torch.Tensor,torch.Tensor]:
     """Training validation routine for each epoch"""
     emb_model.eval()
     pred_model.model.eval()
@@ -178,6 +180,17 @@ def evaluation_predict(emb_model:nn.Module, pred_model:NeuroMatchPred, batchs_li
 
 
 def nm_pr_curve(emb_model:nn.Module, pred_model:NeuroMatchPred, batchs_list:list):
+    """Draws the Precision Recall curves for an embedding and a precision model.
+
+    Parameters
+    ----------
+    emb_model : nn.Module
+        Embedding model to evaluate
+    pred_model : NeuroMatchPred
+        Prediction model to evaluate
+    batchs_list : list
+        test batch
+    """
 
     emb_model.eval()
     pred_model.model.eval()
@@ -199,7 +212,7 @@ def nm_pr_curve(emb_model:nn.Module, pred_model:NeuroMatchPred, batchs_list:list
     print("Saved PR curve plot in plots/precision-recall-curve.png")
 
 
-def enzyme_test(emb_model:nn.Module, pred_model:NeuroMatchPred)-> Tuple[float,float,float]:
+def verif_test(emb_model:nn.Module, pred_model:NeuroMatchPred, dataset:str="enzyme")-> Tuple[float,float,float]:
     """Test for the Enzyme dataset
 
     Parameters
@@ -208,6 +221,9 @@ def enzyme_test(emb_model:nn.Module, pred_model:NeuroMatchPred)-> Tuple[float,fl
         Model for embedding graphs
     pred_model : NeuroMatchPred
         Model for predicting over the embedding
+    dataset : str
+        Can be one of "enzyme" or "synthetic_large", "synthetic_little" dataset. 
+        Basically change the type of data. 
 
     Returns
     -------
@@ -218,13 +234,15 @@ def enzyme_test(emb_model:nn.Module, pred_model:NeuroMatchPred)-> Tuple[float,fl
         - Negative Random query (random graph query sample)
     """
     # --- Initialization ---
-    ds = TUDataset(root="../Testds/ENZYMES", name="ENZYMES")
-    generator =random_generator(range(6,126))
+    # ds = TUDataset(root="../Testds/ENZYMES", name="ENZYMES")
+    # generator =random_generator(range(6,126))
+    ds, generator = dataset_choice(dataset)
     target, query = [], []
     tries = 10
 
     for graph in ds:
         if graph.num_nodes < 6 or not nx.is_connected(pyg_utils.to_networkx(graph,to_undirected=True)) :
+            # Not dealing with too little graph and unconnected.
             continue
         g_tar, g_quer = sample_subgraph(graph,False)
         target.append(g_tar)
@@ -238,6 +256,7 @@ def enzyme_test(emb_model:nn.Module, pred_model:NeuroMatchPred)-> Tuple[float,fl
     emb_query = emb_model(pos_query)
     sum_pos = sum(pred_model.predict(emb_target,emb_query))
     pos_score = sum_pos/n
+
     # --- Test differences for randomly given graph ---
     sum_neg_random = 0
     for _ in range(tries) :
@@ -252,6 +271,7 @@ def enzyme_test(emb_model:nn.Module, pred_model:NeuroMatchPred)-> Tuple[float,fl
         sum_neg_random += sum(~pred_model.predict(emb_target,emb_neg_query))
 
     score_neg_random = sum_neg_random / (n*tries)
+
     # --- Test differences when shuffling querries ---
     sum_neg_shuffled = 0
     for _ in range(tries):
@@ -260,3 +280,44 @@ def enzyme_test(emb_model:nn.Module, pred_model:NeuroMatchPred)-> Tuple[float,fl
     score_neg_shuffled = sum_neg_shuffled / (n*tries)
 
     return pos_score, score_neg_random, score_neg_shuffled
+
+
+def dataset_choice(mode:str) ->Tuple[pyg_data.Dataset,RandomGenerator]:
+    """_summary_
+
+    Parameters
+    ----------
+    mode : str
+        The dataset that is to charge. The possible modes are : 
+            - "enzyme"          : ENZYMES Dataset
+            - "cox2"            : COX2 Dataset
+            - "synthetic_large" : Synthetics graphs of 20 to 90 nodes
+            - "synthetic_little": Synthetics graphs of 6 to 30 nodes
+
+    Returns
+    -------
+    Tuple[pyg_data.Dataset,RandomGenerator]
+        Returns a tuple of the requested dataset and a generator that generate *Negative examples*
+
+    Raises
+    ------
+    NotImplementedError
+        In cases the requested dataset is not part of the choices
+    """
+    if mode == "enzyme" :
+        ds = TUDataset(root="../Testds/ENZYMES", name="ENZYMES")
+        generator =random_generator(range(6,126)) # Min and Max of Enzyme Dataset
+        return ds, generator
+    if mode == "synthetic_large" :
+        ds = SyntheticDataset(root="../Testds/SYNTHETIC")
+        generator = random_generator(ds.graph_size)
+        return ds, generator
+    if mode == "synthetic_little" :
+        ds = SyntheticDataset(root="../Testds/SYNTHETIC_LITTLE",graph_sizes=np.arange(6,30))
+        generator = random_generator(ds.graph_size)
+        return ds, generator
+    if mode == "cox2" : 
+        ds = TUDataset(root="../Testds/COX2", name="COX2")
+        generator =random_generator(range(32,56)) #Min and max of the Cox2 Dataset
+        return ds, generator
+    raise NotImplementedError

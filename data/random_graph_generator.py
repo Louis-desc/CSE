@@ -8,48 +8,10 @@ In this module :
 - Power Law Cluster Generator : PLCGenerator
 """
 
-from abc import ABC, abstractmethod
 import random
 import networkx as nx
 import numpy as np
-
-# ----  Abstract class  ----
-
-class Generator(ABC):
-    r"""
-    Abstract class of on the fly generator used in the dataset.
-    It generates on the fly graphs, which will be fed into the model.
-    """
-    def __init__(self, sizes=None):
-        self._sizes_list = sizes
-
-    def _get_size(self, size=None):
-        
-        if size is None:
-            return np.random.choice(
-                self._sizes_list, size=1, replace=True
-            )[0]
-        else:
-            return size
-
-    def __next__(self) :
-        return self.generate()
-
-    def __iter__(self) :
-        return self
-
-    def __len__(self):
-        return 1
-
-    @abstractmethod
-    def generate(self):
-        r"""
-        Overwrite in subclass. Generates and returns a 
-        :class:`networkx.Graph` object
-
-        Returns:
-            :class:`networkx.Graph`: A networkx graph object.
-        """
+from utils.graph import Generator
 
 # ----  Generators implementation  ----
 
@@ -232,7 +194,7 @@ class RandomGenerator(Generator) :
     def __init__(self,sizes,gen_list=None) :
         super().__init__(sizes)
         self.gen_list = gen_list
-        self.gen_prob = np.ones(len(self.gen_list)) / len(self.gen_list)
+        self.gen_prob = np.ones(len(self.gen_list)) / len(self.gen_list) #Uniform distribution of graph-type generation
 
     @property
     def gen_list(self):

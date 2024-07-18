@@ -4,36 +4,58 @@
 # ---- Import library ----
 import os
 import sys
+import copy
 import torch
 import torch.multiprocessing as mp
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 
-
 import data.random_graph_generator as rgg
 from utils.torch_ml import get_device
 from data.loaders import gen_data_loaders
 from data.batchs import augment_batch
-from models.NM import NeuroMatchNetwork, NeuroMatchPred, nm_criterion
+from data.real_graph_generator import RealGenerator
+from models.NM import NeuroMatchNetwork, NeuroMatchPred, nm_criterion, faulty_criterion
 from evalutation import training_test, generating_evaluation_batchs
 # ------      ------
 
 # ---- Constants ----
 MODEL_PATH = "ckpt/"
 GRAPH_SIZES = np.arange(6, 30)
-EPOCHS = 1000
+EPOCHS = 35
 EPOCH_INTERVAL = 1000           # In number of batchs
 N_WORKERS = 8
 LR=1e-4                         #Original : 1e-4
 WEIGHT_DECAY = 0.0
-SCHEDULER_ON = False
+SCHEDULER_ON = True
+CLASSIC_LOSS = True
 
 
 # ---- Functions ----
 
-def train(model:NeuroMatchNetwork,prediction_model:NeuroMatchPred,generator:rgg.RandomGenerator,in_queue:mp.Queue,out_queue:mp.Queue):
-    """To be Modified"""
+def train(model:NeuroMatchNetwork,prediction_model:NeuroMatchPred,generator:rgg.Generator,in_queue:mp.Queue,out_queue:mp.Queue):
+    """Algorithm of workers. This functions mostly deals with training the embedding models 
+    (see NeuroMatchPred.train(), which is called here, for details on prediction training). 
+
+    Parameters
+    ----------
+    model : NeuroMatchNetwork
+        Instance of a Neuromatch based embedding model. 
+    prediction_model : NeuroMatchPred
+        Instance of a Neuromatch based prediction model.
+    generator : rgg.Generator
+        A generator that will be used for creating batches.
+    in_queue : mp.Queue
+        Multiprocessing in-queue
+    out_queue : mp.Queue
+        Multiprocessing out-queue
+
+    Raises
+    ------
+    ChildProcessError
+        A wrong order have been given by the parent program of this worker.
+    """
     done = False
 
     lr = LR #Initialization
@@ -42,7 +64,8 @@ def train(model:NeuroMatchNetwork,prediction_model:NeuroMatchPred,generator:rgg.
 
     while not done :
 
-        loaders = gen_data_loaders(mini_epoch=1000, generator=generator) #The loader should behave as if it was an infinite generator. I could probably modify that in the future.
+        loaders = gen_data_loaders(mini_epoch=1000, generator=generator)
+        #The loader should behave as if it was an infinite generator. I could probably modify that in the future.
         # --- Training ---
         for pos_batch, neg_batch, _ in zip(*loaders) :
             # -- Waiting for parent process to assign a step --
@@ -70,7 +93,10 @@ def train(model:NeuroMatchNetwork,prediction_model:NeuroMatchPred,generator:rgg.
             emb_neg_tar = model(neg_target)
             emb_neg_que = model(neg_query)
 
-            loss = nm_criterion(emb_pos_tar,emb_pos_que,emb_neg_tar,emb_neg_que)
+            if CLASSIC_LOSS :
+                loss = nm_criterion(emb_pos_tar,emb_pos_que,emb_neg_tar,emb_neg_que)
+            else:
+                loss = faulty_criterion(emb_pos_tar,emb_pos_que,emb_neg_tar,emb_neg_que)
             loss.backward()
             opt.step()
             # scheduler.step(loss)  Run Jun15_10_32
@@ -86,8 +112,21 @@ def train(model:NeuroMatchNetwork,prediction_model:NeuroMatchPred,generator:rgg.
             out_queue.put(("step", (loss.item(), pred_acc, pred_loss)))
     sys.exit(0)
 
-def train_loop():
-    """To be modified"""
+def train_loop(dataset_str:str ="synthetic"):
+    """Training process of the embedding and the prediction algorithm together. 
+    This functions mainly handle multiprocessing, scheduler and epochs verification. 
+    Two other functions (see `train()` for embeddingand `NeuroMatchPred.train()` for prediction ) 
+    handle the loss and mini batchs. 
+    
+    The single functions parameters change the type of dataset to train on. 
+    However, Global variables of this module (train) are to change for some parameters on the training.
+    (For example what loss to use, Scheduler, Starting loss value, number of workers, ...)
+
+    Parameters
+    ----------
+    dataset_str : str, optional
+        Name of the TUDataset to train on (e.g. ENZYMES, COX2, ...) or "synthetic" for randomly generated graphs , by default "synthetic"
+    """
     mp.set_start_method("spawn", force=True)
     if not os.path.exists(os.path.dirname(MODEL_PATH)):
         os.makedirs(os.path.dirname(MODEL_PATH))
@@ -99,8 +138,12 @@ def train_loop():
     pred_model = NeuroMatchPred()
     emb_model.share_memory()
     pred_model.model.share_memory()
-    generator = rgg.random_generator(GRAPH_SIZES)
-
+    # --- Choosing dataset type
+    if dataset_str =="synthetic" :
+        generator = rgg.random_generator(GRAPH_SIZES)
+    else:
+        print(f"using TUDataset : {dataset_str}")
+        generator = RealGenerator(dataset_str)
     writer = SummaryWriter()
 
     #evaluation batch
@@ -109,7 +152,7 @@ def train_loop():
     # --- Creating parrallel workers
     workers = []
     for i in range(N_WORKERS):
-        worker = mp.Process(target=train, args=(emb_model,pred_model,generator,in_queue,out_queue))
+        worker = mp.Process(target=train, args=(emb_model,pred_model,copy.deepcopy(generator),in_queue,out_queue))
         worker.start()
         print(f"Worker {i} PID : {worker.pid}")
         workers.append(worker)
@@ -119,7 +162,7 @@ def train_loop():
     lr = LR
     if SCHEDULER_ON:
         opt = optim.Adam(filter_fn, lr=LR, weight_decay=WEIGHT_DECAY)
-        scheduler = optim.lr_scheduler.ReduceLROnPlateau(opt,patience=500,min_lr=1e-15,)
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(opt,patience=1500)
 
     # --- Training by epochs
     batch_n = 0
