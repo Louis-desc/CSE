@@ -29,7 +29,7 @@ def _bin_features(list_scalars, feature_dim=2):
     assert np.max(feat) == feature_dim - 1
     return _one_hot_tensor(feat, one_hot_dim=feature_dim)
 
-# --- Functions
+# --- Functions from the original git (NOT USED)
 
 def degree_fun(graph, feature_dim):
     graph.node_degree = _one_hot_tensor(
@@ -107,6 +107,9 @@ def compute_identity(edge_index, n, k):
     diag_all = torch.stack(diag_all, dim=1)
     return diag_all
 
+# In the original git, there is a possibility to preprocess a dataset that is not used here bc it does not correspond to the NM paper.
+
+# --- Added (and used) functions ---
 def predict_pretrain(predict):
     """Pretraining function for a NeuroMatch prediction object, 
     it makes the prediction models able to predict if two (embedding like) values are equal or not. 

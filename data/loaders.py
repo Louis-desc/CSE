@@ -1,5 +1,5 @@
-"""package to generate loaders object that yield OTF Batch of graphs.
-This package use Generator from `random_graph_generator` and hence takes networkX graphs as input.
+"""module to generate loaders object that yield OTF Batch of graphs.
+This module use Generator from `random_graph_generator` and hence takes networkX graphs as input.
 However the OTF_container change types to torch_geometric.data.Data"""
 from typing import Tuple, List
 from torch_geometric.loader import DataLoader

@@ -11,16 +11,17 @@ from utils.preprocess import predict_pretrain
 
 # --- Neuro Match Embedding Model with SAGE GNN ---
 class NeuroMatchNetwork(nn.Module) : # Refers to the SkipLastGNN class from the initial project
-    """GNN that embbed a node of a graph. The name is to be changed (once I understand better what each part is doing ...)
+    """GNN that embbed a node of a graph based on Neuromatch paper.
+    This GNN  
     """
     input_dim :int = 1
     hidden_dim :int =64
     output_dim :int =64
     aggr :str ="sum"
     n_layers :int =8                            #Size of the studied neighbourhood
-    dropout :float =0.0                         #Probably to be deleted
-    skip :str ="learnable"                      #Probably to be deleted
-    conv_type :str = "SAGE"                     #Probably to be deleted
+    dropout :float =0.0                         #Probably to be deleted bc never changed 
+    skip :str ="learnable"                      #Probably to be deleted bc never changed 
+    conv_type :str = "SAGE"                     #Probably to be deleted bc never changed 
 
     def __init__(self, input_dim :int=1, hidden_dim :int=64, output_dim :int=64, aggr :str="sum",
                  n_layers :int=8,dropout :float=0.0,skip :str="learnable",conv_type :str= "SAGE") -> None:
@@ -88,10 +89,6 @@ class NeuroMatchNetwork(nn.Module) : # Refers to the SkipLastGNN class from the 
         emb = pyg_nn.global_add_pool(emb, batch)
         emb = self.post_mp(emb)
         return emb
-
-    def loss(self, pred, label):
-        """Negative log likelihood Loss Function"""
-        return F.nll_loss(pred, label)
 
 
 # --- Functions to use with the NM model ---
