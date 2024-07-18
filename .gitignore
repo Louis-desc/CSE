@@ -3,5 +3,6 @@ Testnb/
 .pylintrc
 runs/
 .DS_Store
-ckpt/
+ckpt*
 plots/
+.vscode
